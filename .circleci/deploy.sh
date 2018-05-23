@@ -86,6 +86,6 @@ git commit -m "$MESSAGE"
 if [ $DEPLOY_AS_RELEASE = "yes" ]; then
     git tag -f "${VERSION}${DEPLOY_SUFFIX}"
     git push -f origin "${VERSION}${DEPLOY_SUFFIX}"
-else
+fi
 
 git push origin "$DEPLOY_BRANCH"
