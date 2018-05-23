@@ -1,0 +1,21 @@
+{
+  "name": "yoast/php-development-environment",
+  "description": "Yoast PHP development environment.",
+  "keywords": [
+    "wordpress"
+  ],
+  "homepage": "https://github.com/Yoast/php-development-environment",
+  "license": "GPL-2.0+",
+  "authors": [
+    {
+      "name": "Team Yoast",
+      "email": "support@yoast.com",
+      "homepage": "https://yoast.com"
+    }
+  ],
+  "autoload": {
+    "files": [
+      "define.php"
+    ]
+  }
+}
