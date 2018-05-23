@@ -15,16 +15,21 @@ jobs:
 
       # Get npm cache:
       - restore_cache:
-          key: composer
+          key: build
 
       # Build steps:
       - run: composer install
+      - run: npm install
+      - run: npm run build
+      - run: node_modules/.bin/grunt
 
       # Make fast:
       - save_cache:
-          key: composer
+          key: build
           paths:
             - ~/.composer
+            - ~/.npm
+            - ~/.node-gyp
 
       # Run the deploy:
       - deploy:
