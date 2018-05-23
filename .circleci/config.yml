@@ -1,0 +1,36 @@
+version: 2
+jobs:
+  build:
+    docker:
+      - image: circleci/php:7-cli-stretch-node-browsers
+
+    branches:
+      only:
+        # Whitelist branches to build for.
+        - master
+        - trunk
+    steps:
+      # Checkout repo & subs:
+      - checkout
+
+      # Get npm cache:
+      - restore_cache:
+          key: build
+
+      # Build steps:
+      - run: composer install
+      - run: npm install
+      - run: npm run build
+      - run: node_modules/.bin/grunt
+
+      # Make fast:
+      - save_cache:
+          key: build
+          paths:
+            - ~/.composer
+            - ~/.npm
+            - ~/.node-gyp
+
+      # Run the deploy:
+      - deploy:
+          command: .circleci/deploy.sh
