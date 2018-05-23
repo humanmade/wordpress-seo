@@ -1,0 +1,31 @@
+version: 2
+jobs:
+  build:
+    docker:
+      - image: circleci/php:7-cli-stretch-node-browsers
+
+    branches:
+      only:
+        # Whitelist branches to build for.
+        - master
+        - trunk
+    steps:
+      # Checkout repo & subs:
+      - checkout
+
+      # Get npm cache:
+      - restore_cache:
+          key: composer
+
+      # Build steps:
+      - run: composer install
+
+      # Make fast:
+      - save_cache:
+          key: composer
+          paths:
+            - ~/.composer
+
+      # Run the deploy:
+      - deploy:
+          command: .circleci/deploy.sh
