@@ -10,7 +10,15 @@ jobs:
         - master
         - trunk
     steps:
+      # Install required packages
       - run: sudo apt-get install -y gettext
+      - run:
+          name: Install yarn
+          command: |
+            curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | sudo apt-key add -
+            echo "deb https://dl.yarnpkg.com/debian/ stable main" | sudo tee /etc/apt/sources.list.d/yarn.list
+            sudo apt-get update
+            sudo apt-get install --no-install-recommends yarn
 
       # Checkout repo & subs:
       - checkout
@@ -21,8 +29,12 @@ jobs:
 
       # Build steps:
       - run: composer install
-      - run: npm install
-      - run: node_modules/.bin/grunt artifact
+      - run: yarn
+      - run:
+          name: Build artifact
+          environment:
+            SC_ATTR: wordpress-seo
+          command: node_modules/.bin/grunt artifact
 
       # Make fast:
       - save_cache:

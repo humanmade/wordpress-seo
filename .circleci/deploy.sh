@@ -84,9 +84,9 @@ MESSAGE=$( printf 'Build changes from %s\n\n%s' "${COMMIT}" "${CIRCLE_BUILD_URL}
 git commit -m "$MESSAGE"
 
 # Push it (real good).
-if [[ $DEPLOY_AS_RELEASE = "yes" && $BRANCH = "master" ]]; then
-    git tag -f "${VERSION}${DEPLOY_SUFFIX}"
-    git push -f origin "${VERSION}${DEPLOY_SUFFIX}"
-fi
-
 git push origin "$DEPLOY_BRANCH"
+
+if [[ $DEPLOY_AS_RELEASE = "yes" && $BRANCH = "master" && $(git tag -l "${VERSION}${DEPLOY_SUFFIX}") != "${VERSION}${DEPLOY_SUFFIX}" ]]; then
+    git tag "${VERSION}${DEPLOY_SUFFIX}"
+    git push origin "${VERSION}${DEPLOY_SUFFIX}"
+fi

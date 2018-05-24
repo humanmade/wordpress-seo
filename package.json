@@ -106,7 +106,7 @@
     "draft-js-mention-plugin": "^2.0.1",
     "find-with-regex": "~1.0.2",
     "grunt-wp-deploy": "^1.2.1",
-    "gutenberg": "github:Wordpress/gutenberg#semver:~2.8.0",
+    "gutenberg": "github:Wordpress/gutenberg#2.8.0",
     "interpolate-components": "^1.1.0",
     "jed": "^1.1.1",
     "lodash": "^4.17.4",
