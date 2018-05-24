@@ -20,8 +20,7 @@ jobs:
       # Build steps:
       - run: composer install
       - run: npm install
-      - run: npm run build
-      - run: node_modules/.bin/grunt
+      - run: node_modules/.bin/grunt artifact
 
       # Make fast:
       - save_cache:
@@ -33,4 +32,6 @@ jobs:
 
       # Run the deploy:
       - deploy:
+          environment:
+            SRC_PATH: /artifact/
           command: .circleci/deploy.sh

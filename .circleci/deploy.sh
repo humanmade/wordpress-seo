@@ -9,6 +9,7 @@ GIT_EMAIL="${DEPLOY_GIT_EMAIL:-rob+platform-ui-build@hmn.md}"
 
 BRANCH="${CIRCLE_BRANCH}"
 SRC_DIR="$PWD"
+SRC_PATH="${SRC_PATH:-/}"
 BUILD_DIR="/tmp/hm-build"
 
 if [[ -z "$BRANCH" ]]; then
@@ -58,7 +59,7 @@ if ! command -v 'rsync'; then
 	sudo apt-get install -q -y rsync
 fi
 
-rsync -av "$SRC_DIR/" "$BUILD_DIR" --exclude-from "$SRC_DIR/.circleci/deploy-exclude.txt"
+rsync -av "${SRC_DIR}${SRC_PATH}" "$BUILD_DIR" --exclude-from "$SRC_DIR/.circleci/deploy-exclude.txt"
 
 # Add changed files
 git add .
