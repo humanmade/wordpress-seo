@@ -32,4 +32,6 @@ jobs:
 
       # Run the deploy:
       - deploy:
+          environment:
+            SRC_PATH: /artifact/
           command: .circleci/deploy.sh
