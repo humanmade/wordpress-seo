@@ -10,7 +10,7 @@ jobs:
         - master
         - trunk
     steps:
-      - run: sudo apt-get install -y xgettext
+      - run: sudo apt-get install -y gettext
 
       # Checkout repo & subs:
       - checkout
