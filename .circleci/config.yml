@@ -44,6 +44,8 @@ jobs:
             - ~/.composer
             - ~/.npm
             - ~/.node-gyp
+            - ~/.yarn
+            - ~/.yarn-cache
 
       # Run the deploy:
       - deploy:
