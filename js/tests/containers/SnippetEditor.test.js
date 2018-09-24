@@ -7,8 +7,38 @@ import { switchMode, updateData } from "../../src/redux/actions/snippetEditor";
 
 describe( "SnippetEditor container", () => {
 	it( "maps the state to the props", () => {
-		const state = { snippetEditor: {
+		const state = {
+			focusKeyword: "active",
+			snippetEditor: {
+				mode: "desktop",
+				data: {
+					title: "Title",
+					slug: "slug",
+					description: "Description",
+				},
+				replacementVariables: [
+					{
+						name: "variable",
+						value: "Value",
+					},
+				],
+			},
+			settings: {
+				snippetEditor: {
+					baseUrl: "https://localhost.test",
+					date: "01-01-1970",
+					recommendedReplacementVariables: [
+						{
+							name: "variable",
+							value: "Value",
+						},
+					],
+				},
+			},
+		};
+		const expected = {
 			mode: "desktop",
+			keyword: "active",
 			data: {
 				title: "Title",
 				slug: "slug",
@@ -20,15 +50,9 @@ describe( "SnippetEditor container", () => {
 					value: "Value",
 				},
 			],
-		} };
-		const expected = {
-			mode: "desktop",
-			data: {
-				title: "Title",
-				slug: "slug",
-				description: "Description",
-			},
-			replacementVariables: [
+			baseUrl: "https://localhost.test",
+			date: "01-01-1970",
+			recommendedReplacementVariables: [
 				{
 					name: "variable",
 					value: "Value",

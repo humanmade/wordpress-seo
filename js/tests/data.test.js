@@ -4,13 +4,16 @@ let wpData = {};
 let refresh =  () => {
 	return true;
 };
-let data = new Data( wpData, refresh );
+let store = {
+	dispatch: jest.fn(),
+};
+let data = new Data( wpData, refresh, store );
 
 // Mocks the select function and .
 const mockSelect = jest.fn();
 
 // Mocks the getEditedPostAttribute function.
-const mockGetEditedPostAttribute = jest.fn();
+const mockGetEditedPostAttribute = jest.fn().mockImplementation( value => value );
 
 // Ensures mockSelect.getEditedPostAttribute is a function.
 mockSelect.mockReturnValue( { getEditedPostAttribute: mockGetEditedPostAttribute } );
@@ -118,7 +121,7 @@ describe( "refreshYoastSEO", () => {
 
 describe( "getData", () => {
 	it( "returns the data", () => {
-		data.data = { content: "this is the content" };
+		data._data = { content: "this is the content" };
 		const actual = data.getData();
 		const expected = { content: "this is the content" };
 		expect( actual ).toEqual( expected );
