@@ -1,5 +1,6 @@
 /* global ajaxurl */
 /* global tb_click */
+
 jQuery( function() {
 	jQuery( ".subsubsub .yoast_help" ).on(
 		"click active",

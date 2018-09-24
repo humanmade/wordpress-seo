@@ -168,7 +168,29 @@ class WPSEO_OpenGraph_Test extends WPSEO_UnitTestCase {
 		$this->expectOutput( $expected_html );
 
 		$this->assertEquals( self::$class_instance->og_title( false ), $expected_title );
+	}
 
+	/**
+	 * @covers WPSEO_OpenGraph::og_title
+	 */
+	public function test_og_title_with_variables() {
+		$expected_title = 'Test title';
+		// Create and go to post.
+		$post_id = $this->factory->post->create();
+		wp_update_post( array(
+			'ID'         => $post_id,
+			'post_title' => $expected_title,
+		) );
+		WPSEO_Meta::set_value( 'opengraph-title', '%%title%%', $post_id );
+
+		$this->go_to( get_permalink( $post_id ) );
+
+		$expected_html  = '<meta property="og:title" content="' . $expected_title . '" />' . "\n";
+
+		$this->assertTrue( self::$class_instance->og_title() );
+		$this->expectOutput( $expected_html );
+
+		$this->assertEquals( self::$class_instance->og_title( false ), $expected_title );
 	}
 
 	/**
@@ -380,31 +402,6 @@ class WPSEO_OpenGraph_Test extends WPSEO_UnitTestCase {
 	}
 
 	/**
-	 * Test if image in content is added to open graph.
-	 *
-	 * @covers WPSEO_OpenGraph::image
-	 */
-	public function test_image_get_content_image() {
-		$post_id = $this->factory->post->create(
-			array(
-				'post_content' => '<img class="alignnone size-medium wp-image-490" src="' . get_home_url() . '/wp-content/plugins/wordpress-seo/tests/yoast.png" />',
-			)
-		);
-
-		$this->go_to( get_permalink( $post_id ) );
-
-		$class_instance = new WPSEO_OpenGraph();
-
-		ob_start();
-		$class_instance->opengraph();
-		$output = ob_get_clean();
-
-		$expected_output = '<meta property="og:image" content="' . get_home_url() . '/wp-content/plugins/wordpress-seo/tests/yoast.png" />';
-
-		$this->assertContains( $expected_output, $output );
-	}
-
-	/**
 	 * @covers WPSEO_OpenGraph::description
 	 */
 	public function test_description_frontpage() {
@@ -414,7 +411,6 @@ class WPSEO_OpenGraph_Test extends WPSEO_UnitTestCase {
 		$expected_frontpage_description = self::$class_instance->description( false );
 
 		$this->assertEquals( get_bloginfo( 'description' ), $expected_frontpage_description );
-
 	}
 
 	/**
@@ -494,9 +490,12 @@ class WPSEO_OpenGraph_Test extends WPSEO_UnitTestCase {
 <meta property="og:image:secure_url" content="{$image_url}" />
 EXPECTED;
 		WPSEO_Meta::set_value( 'opengraph-image', $image_url, $post_id );
+
 		ob_start();
 		self::$class_instance->image( false );
-		$this->assertEquals( $expected_output, trim( ob_get_clean() ) );
+		$result = trim( ob_get_clean() );
+
+		$this->assertEquals( $expected_output, $result );
 	}
 
 	/**
@@ -692,6 +691,32 @@ EXPECTED;
 	}
 
 	/**
+	 * Testing with an Open Graph meta description for the taxonomy.
+	 *
+	 * @covers WPSEO_OpenGraph::description
+	 */
+	public function test_taxonomy_description_with_replacevars() {
+		$expected_title = 'Test title';
+		$term_id = $this->factory->term->create( array( 'taxonomy' => 'category', 'name' => $expected_title ) );
+
+		WPSEO_Taxonomy_Meta::set_value( $term_id, 'category', 'opengraph-description', '%%term_title%%' );
+
+		$this->go_to( get_term_link( $term_id, 'category' ) );
+
+		$class_instance = new WPSEO_OpenGraph();
+
+		ob_start();
+
+		$class_instance->opengraph();
+
+		$output = ob_get_clean();
+
+		$expected_html  = '<meta property="og:description" content="' . $expected_title . '" />' . "\n";
+
+		$this->assertContains( $expected_html, $output );
+	}
+
+	/**
 	 * Testing with an Open Graph meta image for the taxonomy.
 	 *
 	 * @covers WPSEO_OpenGraph::image
@@ -714,6 +739,94 @@ EXPECTED;
 		$this->assertContains( '<meta property="og:image" content="' . home_url( 'custom_twitter_image.png' ) . '" />', $output );
 	}
 
+	/**
+	 * Tests the rendering of article:section for a post with two categories.
+	 *
+	 * @covers WPSEO_OpenGraph::category()
+	 */
+	public function test_get_category() {
+		$post_id = $this->create_post_with_categories();
+
+		$this->go_to( get_permalink( $post_id ) );
+
+		$class_instance = new WPSEO_OpenGraph();
+
+		ob_start();
+
+		$class_instance->category();
+
+		$output = ob_get_clean();
+
+		$this->assertContains( '<meta property="article:section" content="category1" />', $output );
+	}
+
+	/**
+	 * Tests the rendering of article:section for a post with two categories wherefor the first
+	 * set category will be removed via a filter.
+	 *
+	 * @covers WPSEO_OpenGraph::category()
+	 */
+	public function test_get_category_with_first_value_removed_by_filter() {
+		add_filter( 'get_the_categories', array( $this, 'remove_first_category' ) );
+
+		$post_id = $this->create_post_with_categories();
+
+		$this->go_to( get_permalink( $post_id ) );
+
+		$class_instance = new WPSEO_OpenGraph();
+
+		ob_start();
+
+		$class_instance->category();
+
+		$output = ob_get_clean();
+
+		$this->assertContains( '<meta property="article:section" content="category2" />', $output );
+
+		remove_filter( 'get_the_categories', array( $this, 'remove_first_category' ) );
+	}
+
+	/**
+	 * Creates a post with a pair of categories attached.
+	 *
+	 * @return int The created post id.
+	 */
+	protected function create_post_with_categories() {
+		$post_id = self::factory()->post->create();
+		$term1   = self::factory()
+			->term
+			->create(
+				array(
+					'name'     => 'category1',
+					'taxonomy' => 'category',
+				)
+			);
+		$term2   = self::factory()
+			->term
+			->create(
+				array(
+					'name'     => 'category2',
+					'taxonomy' => 'category',
+				)
+			);
+
+		self::factory()->term->add_post_terms( $post_id, array( $term1, $term2 ), 'category' );
+
+		return $post_id;
+	}
+
+	/**
+	 * Removes the first category from a list.
+	 *
+	 * @param array $categories List of categories.
+	 *
+	 * @return array The altered category.
+	 */
+	public function remove_first_category( $categories ) {
+		unset( $categories[0] );
+
+		return $categories;
+	}
 
 	/**
 	 * @param string  $image   Path.
@@ -738,5 +851,4 @@ EXPECTED;
 
 		return $attach_id;
 	}
-
 }

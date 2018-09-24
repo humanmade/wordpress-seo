@@ -65,13 +65,17 @@ module.exports = function( grunt ) {
 			command: "yarn i18n-yoast-components",
 		},
 
+		"makepot-wordpress-seo": {
+			command: "yarn i18n-wordpress-seo",
+		},
+
 		"makepot-yoastseojs": {
 			potFile: "languages/yoast-seo-js.pot",
 			textdomain: "js-text-analysis",
 			command: function() {
 				var files;
 
-				files = [ "./node_modules/yoastseo/js/**/*.js" ];
+				files = [ "./node_modules/yoastseo/src/**/*.js" ];
 				files = grunt.file.expand( files );
 
 				return "xgettext" +

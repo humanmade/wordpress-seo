@@ -1,11 +1,14 @@
 /* External dependencies */
-import removeMarks from "yoastseo/js/markers/removeMarks";
-import forEach from "lodash/forEach";
-import omit from "lodash/omit";
+import analysis from "yoastseo";
+const { removeMarks } = analysis.markers;
 
 /* Internal dependencies */
 import { updateReplacementVariable } from "../redux/actions/snippetEditor";
-import updateReplacementVariables from "../helpers/updateReplacementVariables";
+import {
+	fillReplacementVariables,
+	mapCustomFields,
+	mapCustomTaxonomies,
+} from "../helpers/replacementVariableHelpers";
 import tmceHelper, { tmceId } from "../wp-seo-tinymce";
 import debounce from "lodash/debounce";
 
@@ -16,17 +19,22 @@ class ClassicEditorData {
 	/**
 	 * Sets the wp data, Yoast SEO refresh function and data object.
 	 *
-	 * @param {Function} refresh The YoastSEO refresh function.
-	 * @param {Object} store     The YoastSEO Redux store.
+	 * @param {Function} refresh          The YoastSEO refresh function.
+	 * @param {Object} store              The YoastSEO Redux store.
+	 * @param {Object} settings           The settings for this classic editor data
+	 *                                    object.
+	 * @param {string} settings.tinyMceId The ID of the tinyMCE editor.
+	 *
 	 * @returns {void}
 	 */
-	constructor( refresh, store ) {
+	constructor( refresh, store, settings = { tinyMceId: "" } ) {
 		this._refresh = refresh;
 		this._store = store;
 		this._data = {};
 		// This will be used for the comparison whether the title, description and slug are dirty.
 		this._previousData = {};
-		this.updateData = this.updateData.bind( this );
+		this._settings = settings;
+		this.updateReplacementData = this.updateReplacementData.bind( this );
 		this.refreshYoastSEO = this.refreshYoastSEO.bind( this );
 	}
 
@@ -39,7 +47,7 @@ class ClassicEditorData {
 	 */
 	initialize( replaceVars ) {
 		this._data = this.getInitialData( replaceVars );
-		updateReplacementVariables( this._data, this._store );
+		fillReplacementVariables( this._data, this._store );
 		this.subscribeToElements();
 		this.subscribeToStore();
 	}
@@ -75,7 +83,7 @@ class ClassicEditorData {
 		let newPostSlug = document.getElementById( "new-post-slug" );
 
 		if ( newPostSlug ) {
-			slug = newPostSlug.val();
+			slug = newPostSlug.value;
 		} else if ( document.getElementById( "editable-post-name-full" ) !== null ) {
 			slug = document.getElementById( "editable-post-name-full" ).textContent;
 		}
@@ -89,7 +97,13 @@ class ClassicEditorData {
 	 * @returns {string} The content of the document.
 	 */
 	getContent() {
-		return removeMarks( tmceHelper.getContentTinyMce( tmceId ) );
+		let tinyMceId = this._settings.tinyMceId;
+
+		if ( tinyMceId === "" ) {
+			tinyMceId = tmceId;
+		}
+
+		return removeMarks( tmceHelper.getContentTinyMce( tinyMceId ) );
 	}
 
 	/**
@@ -106,12 +120,12 @@ class ClassicEditorData {
 	/**
 	 * Subscribes to an element via its id, and sets a callback.
 	 *
-	 * @param {string} elementId          The id of the element to subscribe to.
-	 * @param {string} targetReplaceVar   The name of the replacevar the value should be sent to.
+	 * @param {string}  elementId       The id of the element to subscribe to.
+	 * @param {string}  targetField     The name of the field the value should be sent to.
 	 *
 	 * @returns {void}
 	 */
-	subscribeToInputElement( elementId, targetReplaceVar ) {
+	subscribeToInputElement( elementId, targetField ) {
 		const element = document.getElementById( elementId );
 
 		/*
@@ -123,7 +137,7 @@ class ClassicEditorData {
 		}
 
 		element.addEventListener( "input", ( event ) => {
-			this.updateData( event, targetReplaceVar );
+			this.updateReplacementData( event, targetField );
 		} );
 	}
 
@@ -135,7 +149,7 @@ class ClassicEditorData {
 	 *
 	 * @returns {void}
 	 */
-	updateData( event, targetReplaceVar ) {
+	updateReplacementData( event, targetReplaceVar ) {
 		const replaceValue = event.target.value;
 		this._data[ targetReplaceVar ] = replaceValue;
 		this._store.dispatch( updateReplacementVariable( targetReplaceVar, replaceValue ) );
@@ -145,8 +159,8 @@ class ClassicEditorData {
 	 * Checks whether the current data and the data from the updated state are the same.
 	 *
 	 * @param {Object} currentData The current data.
-	 * @param {Object} newData The data from the updated state.
-	 * @returns {boolean} Whether the current data and the newData is the same.
+	 * @param {Object} newData     The data from the updated state.
+	 * @returns {boolean}          Whether the current data and the newData is the same.
 	 */
 	isShallowEqual( currentData, newData ) {
 		if ( Object.keys( currentData ).length !== Object.keys( newData ).length ) {
@@ -195,53 +209,6 @@ class ClassicEditorData {
 	}
 
 	/**
-	 * Map the custom_fields field in the replacevars to a format suited for redux.
-	 *
-	 * @param {Object} replaceVars       The original replacevars.
-	 *
-	 * @returns {Object}                 The restructured replacevars object without custom_fields.
-	 */
-	mapCustomFields( replaceVars ) {
-		if( ! replaceVars.custom_fields ) {
-			return replaceVars;
-		}
-
-		let customFieldReplaceVars = {};
-		forEach( replaceVars.custom_fields, ( value, key ) => {
-			customFieldReplaceVars[ `cf_${ key }` ] = value;
-		} );
-
-		return omit( {
-			...replaceVars,
-			...customFieldReplaceVars,
-		}, "custom_fields" );
-	}
-
-	/**
-	 * Map the custom_taxonomies field in the replacevars to a format suited for redux.
-	 *
-	 * @param {Object} replaceVars       The original replacevars.
-	 *
-	 * @returns {Object}                 The restructured replacevars object without custom_taxonomies.
-	 */
-	mapCustomTaxonomies( replaceVars ) {
-		if( ! replaceVars.custom_taxonomies ) {
-			return replaceVars;
-		}
-
-		let customTaxonomyReplaceVars = {};
-		forEach( replaceVars.custom_taxonomies, ( value, key ) => {
-			customTaxonomyReplaceVars[ `ct_${ key }` ] = value.name;
-			customTaxonomyReplaceVars[ `ct_desc_${ key }` ] = value.description;
-		} );
-
-		return omit( {
-			...replaceVars,
-			...customTaxonomyReplaceVars,
-		}, "custom_taxonomies" );
-	}
-
-	/**
 	 * Gets the initial data from the replacevars and document.
 	 *
 	 * @param {Object} replaceVars The replaceVars object.
@@ -249,8 +216,8 @@ class ClassicEditorData {
 	 * @returns {Object} The data.
 	 */
 	getInitialData( replaceVars ) {
-		replaceVars = this.mapCustomFields( replaceVars );
-		replaceVars = this.mapCustomTaxonomies( replaceVars );
+		replaceVars = mapCustomFields( replaceVars, this._store );
+		replaceVars = mapCustomTaxonomies( replaceVars, this._store );
 		return {
 			...replaceVars,
 			title: this.getTitle(),

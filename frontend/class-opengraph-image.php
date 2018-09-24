@@ -85,7 +85,9 @@ class WPSEO_OpenGraph_Image {
 			$this->add_image_by_url( $image );
 		}
 
-		$this->set_images();
+		if ( ! post_password_required() ) {
+			$this->set_images();
+		}
 	}
 
 	/**
@@ -194,14 +196,18 @@ class WPSEO_OpenGraph_Image {
 
 	/**
 	 * If the frontpage image exists, call add_image.
+	 *
+	 * @return void
 	 */
 	private function set_front_page_image() {
-		// If no frontpage image is found, don't add anything.
-		if ( WPSEO_Options::get( 'og_frontpage_image', '' ) === '' ) {
+		if ( get_option( 'show_on_front' ) === 'page' ) {
+			$this->set_user_defined_image();
+
+			// Don't fall back to the frontpage image below, as that's not set for this situation, so we should fall back to the default image.
 			return;
 		}
 
-		$this->add_image_by_url( WPSEO_Options::get( 'og_frontpage_image' ) );
+		$this->add_image_by_url( WPSEO_Options::get( 'og_frontpage_image', '' ) );
 	}
 
 	/**
@@ -213,6 +219,7 @@ class WPSEO_OpenGraph_Image {
 		$post_id = get_option( 'page_for_posts' );
 
 		$this->set_image_post_meta( $post_id );
+
 		if ( $this->has_images() ) {
 			return;
 		}
@@ -229,7 +236,28 @@ class WPSEO_OpenGraph_Image {
 	 */
 	private function set_singular_image( $post_id = null ) {
 		if ( $post_id === null ) {
-			$post_id = get_queried_object_id();
+			$post_id = $this->get_queried_object_id();
+		}
+
+		$this->set_user_defined_image( $post_id );
+
+		if ( $this->has_images() ) {
+			return;
+		}
+
+		$this->add_first_usable_content_image( get_post( $post_id ) );
+	}
+
+	/**
+	 * Gets the user-defined image of the post.
+	 *
+	 * @param null|int $post_id The post id to get the images for.
+	 *
+	 * @return void
+	 */
+	private function set_user_defined_image( $post_id = null ) {
+		if ( $post_id === null ) {
+			$post_id = $this->get_queried_object_id();
 		}
 
 		$this->set_image_post_meta( $post_id );
@@ -239,12 +267,6 @@ class WPSEO_OpenGraph_Image {
 		}
 
 		$this->set_featured_image( $post_id );
-
-		if ( $this->has_images() ) {
-			return;
-		}
-
-		$this->add_content_images( get_post( $post_id ) );
 	}
 
 	/**
@@ -300,20 +322,20 @@ class WPSEO_OpenGraph_Image {
 	 * @return void
 	 */
 	private function set_attachment_page_image() {
-		$post_id = get_queried_object_id();
+		$post_id = $this->get_queried_object_id();
 		if ( wp_attachment_is_image( $post_id ) ) {
 			$this->add_image_by_id( $post_id );
 		}
 	}
 
 	/**
-	 * Retrieve images from the post content.
+	 * Adds the first usable attachment image from the post content.
 	 *
 	 * @param object $post The post object.
 	 *
 	 * @return void
 	 */
-	private function add_content_images( $post ) {
+	private function add_first_usable_content_image( $post ) {
 		$image_finder = new WPSEO_Content_Images();
 		$images       = $image_finder->get_images( $post->ID, $post );
 
@@ -321,13 +343,20 @@ class WPSEO_OpenGraph_Image {
 			return;
 		}
 
-		foreach ( $images as $image_url => $attachment_id ) {
-			if ( $attachment_id !== 0 ) {
-				$this->add_image_by_id( $attachment_id );
+		foreach ( $images as $image_url ) {
+			$attachment_id = WPSEO_Image_Utils::get_attachment_by_url( $image_url );
+
+			// If image is hosted externally, skip it and continue to the next image.
+			if ( $attachment_id === 0 ) {
+				continue;
 			}
 
-			if ( $attachment_id === 0 ) {
-				$this->add_image_by_url( $image_url );
+			// If locally hosted image meets the requirements, add it as OG image.
+			$this->add_image_by_id( $attachment_id );
+
+			// If an image has been added, we're done.
+			if ( $this->has_images() ) {
+				return;
 			}
 		}
 	}
@@ -339,12 +368,13 @@ class WPSEO_OpenGraph_Image {
 	 *
 	 * @return void
 	 */
-	protected function add_image_by_url( $url ) {
+	public function add_image_by_url( $url ) {
 		if ( empty( $url ) ) {
 			return;
 		}
 
 		$attachment_id = WPSEO_Image_Utils::get_attachment_by_url( $url );
+
 		if ( $attachment_id > 0 ) {
 			$this->add_image_by_id( $attachment_id );
 			return;
@@ -408,7 +438,7 @@ class WPSEO_OpenGraph_Image {
 	 *
 	 * @return void
 	 */
-	protected function add_image_by_id( $attachment_id ) {
+	public function add_image_by_id( $attachment_id ) {
 		if ( ! $this->is_valid_attachment( $attachment_id ) ) {
 			return;
 		}
@@ -561,5 +591,14 @@ class WPSEO_OpenGraph_Image {
 		}
 
 		return $extension;
+	}
+
+	/**
+	 * Gets the queried object ID.
+	 *
+	 * @return int The queried object ID.
+	 */
+	protected function get_queried_object_id() {
+		return get_queried_object_id();
 	}
 }

@@ -4,6 +4,7 @@
 /* global _ */
 /* global JSON */
 /* global console */
+
 const shortcodeNameMatcher = "[^<>&/\\[\\]\x00-\x20=]+?";
 const shortcodeAttributesMatcher = "( [^\\]]+?)?";
 

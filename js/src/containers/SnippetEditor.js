@@ -1,49 +1,126 @@
+/* globals wpseoAdminL10n */
+import React from "react";
 import { connect } from "react-redux";
-import { SnippetEditor } from "yoast-components";
+import {
+	SnippetEditor,
+	HelpText,
+} from "yoast-components";
+import identity from "lodash/identity";
+import get from "lodash/get";
+import { __ } from "@wordpress/i18n";
+import { dispatch as wpDataDispatch } from "@wordpress/data";
+import analysis from "yoastseo";
+import { utils } from "yoast-components";
+const { stripHTMLTags: stripFullTags } = analysis.string;
+
 import {
 	switchMode,
 	updateData,
 } from "../redux/actions/snippetEditor";
-import isUndefined from "lodash/isUndefined";
-import { getResultsForKeyword, getActiveKeyword } from "../redux/selectors/results";
+import { updateAnalysisData } from "../redux/actions/analysisData";
+import SnippetPreviewSection from "../components/SnippetPreviewSection";
+
+const ExplanationLink = utils.makeOutboundLink();
 
 /**
- * Returns true for the title length result.
+ * Runs the legacy replaceVariables function on the data in the snippet preview.
  *
- * @param {array} results The SEO results.
- * @returns {boolean} True if it's the title length result.
+ * @param {Object} data             The snippet preview data object.
+ * @param {string} data.title       The snippet preview title.
+ * @param {string} data.url         The snippet preview url: baseUrl with the slug.
+ * @param {string} data.description The snippet preview description.
+ *
+ * @returns {Object} Returns the data object in which the placeholders have been replaced.
  */
-function isTitleLengthResult( results ) {
-	return results._identifier === "titleWidth";
-}
+const legacyReplaceUsingPlugin = function( data ) {
+	const replaceVariables = get( window, [ "YoastSEO", "wp", "replaceVarsPlugin", "replaceVariables" ], identity );
+
+	return {
+		url: data.url,
+		title: stripFullTags( replaceVariables( data.title ) ),
+		description: stripFullTags( replaceVariables( data.description ) ),
+	};
+};
 
 /**
- * Returns true for the description length result.
+ * Apply replaceVariables function on the data in the snippet preview.
  *
- * @param {array} results The SEO results.
- * @returns {boolean} True if it's the description length result.
- */
-function isDescriptionLengthResult( results ) {
-	return results._identifier === "metaDescriptionLength";
-}
-
-/**
- *	Gets the data needed for calculating the length progress.
+ * @param {Object} data             The snippet preview data object.
+ * @param {string} data.title       The snippet preview title.
+ * @param {string} data.url         The snippet preview url: baseUrl with the slug.
+ * @param {string} data.description The snippet preview description.
  *
- * @param {Object} result The assessment result.
- * @returns {Object} The data needed for calculating the length progress.
+ * @returns {Object} Returns the data object in which the placeholders have been replaced.
  */
-function getProgress( result ) {
-	let progress = {};
-	if ( ! isUndefined( result ) ) {
-		progress = {
-			max: result.max,
-			actual: result.actual,
-			score: result.score,
-		};
+const applyReplaceUsingPlugin = function( data ) {
+	// If we do not have pluggable loaded, apply just our own replace variables.
+	const pluggable = get( window, [ "YoastSEO", "app", "pluggable" ], false );
+	if ( ! pluggable || ! get( window, [ "YoastSEO", "app", "pluggable", "loaded" ], false ) ) {
+		return legacyReplaceUsingPlugin( data );
 	}
-	return progress;
-}
+
+	const applyModifications = pluggable._applyModifications.bind( pluggable );
+
+	return {
+		url: data.url,
+		title: stripFullTags( applyModifications( "data_page_title", data.title ) ),
+		description: stripFullTags( applyModifications( "data_meta_desc", data.description ) ),
+	};
+};
+
+/**
+ * Process the snippet editor form data before it's being displayed in the snippet preview.
+ *
+ * @param {Object} data                     The snippet preview data object.
+ * @param {string} data.title               The snippet preview title.
+ * @param {string} data.url                 The snippet preview url: baseUrl with the slug.
+ * @param {string} data.description         The snippet preview description.
+ * @param {Object} context                  The context surrounding the snippet editor form data.
+ * @param {string} context.shortenedBaseUrl The baseUrl of the snippet preview url.
+ *
+ * @returns {Object} The snippet preview data object.
+ */
+export const mapEditorDataToPreview = function( data, context ) {
+	let baseUrlLength = 0;
+
+	if ( context.shortenedBaseUrl && typeof( context.shortenedBaseUrl ) === "string" ) {
+		baseUrlLength = context.shortenedBaseUrl.length;
+	}
+
+	// Replace whitespaces in the url with dashes.
+	data.url = data.url.replace( /\s+/g, "-" );
+	if ( data.url[ data.url.length - 1 ] === "-" ) {
+		data.url = data.url.slice( 0, -1 );
+	}
+	// If the first symbol after the baseUrl is a hyphen, remove that hyphen.
+	// This hyphen is removed because it is usually the result of the regex replacing a space it shouldn't.
+	if ( data.url[ baseUrlLength ] === "-" ) {
+		data.url = data.url.slice( 0, baseUrlLength ) + data.url.slice( baseUrlLength + 1 );
+	}
+
+	return applyReplaceUsingPlugin( data );
+};
+
+const SnippetEditorWrapper = ( props ) => (
+	<React.Fragment>
+		<HelpText>
+			{ __( "This is a rendering of what this post might look like in Google's search results.", "wordpress-seo" ) + " " }
+			<ExplanationLink href={ wpseoAdminL10n[ "shortlinks.snippet_preview_info" ] } rel={ null }>
+				{ __( "Learn more about the Snippet Preview.", "wordpress-seo" ) }
+			</ExplanationLink>
+		</HelpText>
+		<SnippetPreviewSection
+			icon="eye"
+			hasPaperStyle={ props.hasPaperStyle }
+		>
+			<SnippetEditor
+				{ ...props }
+				descriptionPlaceholder={ __( "Please provide a meta description by editing the snippet below." ) }
+				mapEditorDataToPreview={ mapEditorDataToPreview }
+			/>
+		</SnippetPreviewSection>
+	</React.Fragment>
+);
 
 /**
  * Maps the redux state to the snippet editor component.
@@ -54,28 +131,21 @@ function getProgress( result ) {
  * @returns {Object} Data for the `SnippetEditor` component.
  */
 export function mapStateToProps( state ) {
-	let activeKeyword = getActiveKeyword( state );
-	let seoResults = getResultsForKeyword( state, activeKeyword );
-
-	let titleLengthResult = seoResults.find( isTitleLengthResult );
-	let descriptionLengthResult = seoResults.find( isDescriptionLengthResult );
-
-	let titleLengthProgress = getProgress( titleLengthResult );
-	let descriptionLengthProgress = getProgress( descriptionLengthResult );
 	let replacementVariables = state.snippetEditor.replacementVariables;
 
 	// Replace all empty values with %%replaceVarName%% so the replacement variables plugin can do its job.
 	replacementVariables.forEach( ( replaceVariable ) => {
-		if( replaceVariable.value === "" ) {
+		if ( replaceVariable.value === "" && ! [ "title", "excerpt", "excerpt_only" ].includes( replaceVariable.name ) ) {
 			replaceVariable.value = "%%" + replaceVariable.name + "%%";
 		}
 	} );
 
 	return {
 		...state.snippetEditor,
-		titleLengthProgress,
-		descriptionLengthProgress,
-		keyword: state.activeKeyword,
+		keyword: state.focusKeyword,
+		baseUrl: state.settings.snippetEditor.baseUrl,
+		date: state.settings.snippetEditor.date,
+		recommendedReplacementVariables: state.settings.snippetEditor.recommendedReplacementVariables,
 	};
 }
 
@@ -98,8 +168,22 @@ export function mapDispatchToProps( dispatch ) {
 			}
 
 			dispatch( action );
+
+			/*
+			 * Update the gutenberg store with the new slug, after updating our own store,
+			 * to make sure our store isn't updated twice.
+			 */
+			if ( key === "slug" ) {
+				const coreEditorDispatch = wpDataDispatch( "core/editor" );
+				if ( coreEditorDispatch ) {
+					coreEditorDispatch.editPost( { slug: value } );
+				}
+			}
+		},
+		onChangeAnalysisData: ( analysisData ) => {
+			dispatch( updateAnalysisData( analysisData ) );
 		},
 	};
 }
 
-export default connect( mapStateToProps, mapDispatchToProps )( SnippetEditor );
+export default connect( mapStateToProps, mapDispatchToProps )( SnippetEditorWrapper );

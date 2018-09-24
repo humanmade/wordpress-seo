@@ -2,6 +2,7 @@
 /* global JSON */
 /* global wpseoBulkEditorNonce */
 /* jshint -W097 */
+
 ( function() {
 	"use strict";
 	var bulkEditor = function( currentTable ) {
